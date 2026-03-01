@@ -34,6 +34,10 @@ import { AuthService } from './core/auth/auth.service';
                routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">
               Rules &amp; Docs
             </a>
+            <a class="nav-link" routerLink="/about"
+               routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">
+              About
+            </a>
           </div>
 
           <div class="nav-user">
