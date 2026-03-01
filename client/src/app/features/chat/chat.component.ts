@@ -1,6 +1,7 @@
 import {
   Component,
   OnInit,
+  OnDestroy,
   AfterViewChecked,
   ViewChild,
   ElementRef,
@@ -8,6 +9,7 @@ import {
   signal
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -18,8 +20,14 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatIconModule } from '@angular/material/icon';
 
 import { ChatService } from '../../core/services/chat.service';
+import { DocsService } from '../../core/services/docs.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { ChatMessage } from '../../core/models/chat.model';
+import { DocFile } from '../../core/models/docs.model';
+
+type TextSeg = { kind: 'text'; value: string };
+type DocSeg  = { kind: 'doc';  name: string  };
+type MsgSeg  = TextSeg | DocSeg;
 
 @Component({
   selector: 'app-chat',
@@ -83,7 +91,15 @@ import { ChatMessage } from '../../core/models/chat.model';
               }
               <div class="bubble-wrapper" [class.user-wrapper]="msg.role === 'user'">
                 <div class="bubble" [class.user-bubble]="msg.role === 'user'" [class.assistant-bubble]="msg.role === 'assistant'">
-                  {{ msg.content }}
+                  @for (seg of parseSegments(msg.content); track $index) {
+                    @if (seg.kind === 'text') {{{ seg.value }}}
+                    @else {
+                      <button class="doc-chip" (click)="openDoc(seg.name)" title="View source document">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        {{ seg.name }}
+                      </button>
+                    }
+                  }
                 </div>
                 <div class="timestamp" [class.user-timestamp]="msg.role === 'user'">
                   {{ formatTime(msg.timestamp) }}
@@ -138,6 +154,36 @@ import { ChatMessage } from '../../core/models/chat.model';
       </mat-card>
 
     </div>
+
+    <!-- Document Sidebar -->
+    @if (sidebarDocName()) {
+      <div class="doc-sidebar" (keydown.escape)="closeDoc()">
+        <div class="sidebar-header">
+          <div class="sidebar-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            {{ sidebarDocName() }}
+          </div>
+          <button class="sidebar-close" (click)="closeDoc()" title="Close">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <div class="sidebar-body">
+          @if (sidebarLoading()) {
+            <div class="sidebar-spinner-wrap">
+              <div class="sidebar-spinner"></div>
+              <span>Loading document…</span>
+            </div>
+          } @else if (sidebarPdfUrl()) {
+            <embed class="sidebar-pdf" [src]="safeSidebarPdfUrl()!" type="application/pdf"/>
+          } @else if (sidebarContent()) {
+            <pre class="sidebar-text">{{ sidebarContent() }}</pre>
+          }
+        </div>
+      </div>
+      <div class="sidebar-backdrop" (click)="closeDoc()"></div>
+    }
+
   `,
   styles: [`
     :host { display: block; }
@@ -341,6 +387,145 @@ import { ChatMessage } from '../../core/models/chat.model';
       padding: 0 !important;
     }
 
+    /* ── Doc chips ───────────────────────────────── */
+
+    .doc-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      background: rgba(92,71,153,0.12);
+      border: 1px solid rgba(92,71,153,0.3);
+      color: #5c4799;
+      font-size: 0.75rem;
+      font-weight: 600;
+      font-family: monospace;
+      padding: 0.1rem 0.45rem;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      vertical-align: baseline;
+      white-space: nowrap;
+    }
+    .doc-chip:hover {
+      background: rgba(92,71,153,0.22);
+      border-color: rgba(92,71,153,0.55);
+    }
+
+    /* ── Sidebar ─────────────────────────────────── */
+
+    .doc-sidebar {
+      position: fixed;
+      top: 56px;
+      right: 0;
+      bottom: 0;
+      width: min(500px, 45vw);
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+      display: flex;
+      flex-direction: column;
+      z-index: 200;
+      animation: slideIn 0.2s ease-out;
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+
+    .sidebar-backdrop {
+      position: fixed;
+      inset: 56px 0 0 0;
+      z-index: 199;
+    }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    .sidebar-title {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      font-family: monospace;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sidebar-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0.25rem;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      transition: color 0.15s, background 0.15s;
+    }
+    .sidebar-close:hover { color: var(--text); background: var(--primary-light); }
+
+    .sidebar-body {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .sidebar-spinner-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      height: 100%;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+    }
+
+    .sidebar-spinner {
+      width: 24px;
+      height: 24px;
+      border: 2.5px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .sidebar-text {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.8rem;
+      line-height: 1.65;
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+      padding: 1rem;
+      margin: 0;
+    }
+
+    .sidebar-pdf {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+    }
+
+    @media (max-width: 700px) {
+      .doc-sidebar { width: 100vw; }
+    }
+
     /* ── Responsive ──────────────────────────────── */
 
     @media (max-width: 600px) {
@@ -352,20 +537,93 @@ import { ChatMessage } from '../../core/models/chat.model';
     }
   `]
 })
-export class ChatComponent implements OnInit, AfterViewChecked {
+export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   @ViewChild('messageContainer') private messageContainer!: ElementRef<HTMLDivElement>;
 
   private readonly chatService = inject(ChatService);
+  private readonly docsService = inject(DocsService);
+  private readonly sanitizer   = inject(DomSanitizer);
   readonly authService = inject(AuthService);
 
-  readonly messages = signal<ChatMessage[]>([]);
-  readonly loading  = signal(false);
+  readonly messages        = signal<ChatMessage[]>([]);
+  readonly loading         = signal(false);
+  readonly docFiles        = signal<DocFile[]>([]);
+  readonly sidebarDocName  = signal<string | null>(null);
+  readonly sidebarContent  = signal<string | null>(null);
+  readonly sidebarPdfUrl   = signal<string | null>(null);
+  readonly sidebarLoading  = signal(false);
 
   currentInput = '';
-
   private shouldScroll = false;
 
+  private static readonly DOC_REGEX = /\[([A-Z0-9][A-Z0-9 _\-]{1,49})\]/g;
+
+  safeSidebarPdfUrl(): SafeResourceUrl | null {
+    const url = this.sidebarPdfUrl();
+    return url ? this.sanitizer.bypassSecurityTrustResourceUrl(url) : null;
+  }
+
+  parseSegments(text: string): MsgSeg[] {
+    const segs: MsgSeg[] = [];
+    const re = new RegExp(ChatComponent.DOC_REGEX.source, 'g');
+    let last = 0, m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) segs.push({ kind: 'text', value: text.slice(last, m.index) });
+      segs.push({ kind: 'doc', name: m[1] });
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) segs.push({ kind: 'text', value: text.slice(last) });
+    return segs;
+  }
+
+  openDoc(bracketName: string) {
+    this.sidebarDocName.set(bracketName);
+    this.sidebarContent.set(null);
+    this.revokeSidebarPdf();
+    this.sidebarLoading.set(true);
+
+    const normalized = bracketName.toUpperCase().replace(/\s+/g, '-');
+    const match = this.docFiles().find(f => {
+      const base = f.name.replace(/\.[^.]+$/, '').toUpperCase().replace(/\s+/g, '-');
+      return base === normalized;
+    });
+
+    if (!match) {
+      this.sidebarLoading.set(false);
+      this.sidebarContent.set(`"${bracketName}" was not found in the document library.`);
+      return;
+    }
+
+    if (match.contentType === 'application/pdf') {
+      this.docsService.getPdfBlob(match.name).subscribe({
+        next: url => { this.sidebarPdfUrl.set(url); this.sidebarLoading.set(false); },
+        error: ()  => { this.sidebarContent.set('Failed to load document.'); this.sidebarLoading.set(false); }
+      });
+    } else {
+      this.docsService.getContent(match.name).subscribe({
+        next: text => { this.sidebarContent.set(text); this.sidebarLoading.set(false); },
+        error: ()   => { this.sidebarContent.set('Failed to load document.'); this.sidebarLoading.set(false); }
+      });
+    }
+  }
+
+  closeDoc() {
+    this.sidebarDocName.set(null);
+    this.sidebarContent.set(null);
+    this.revokeSidebarPdf();
+  }
+
+  private revokeSidebarPdf() {
+    const url = this.sidebarPdfUrl();
+    if (url) { URL.revokeObjectURL(url); this.sidebarPdfUrl.set(null); }
+  }
+
   ngOnInit(): void {
+    this.docsService.listFiles().subscribe({
+      next: files => this.docFiles.set(files),
+      error: () => {}
+    });
+
     this.messages.set([
       {
         role: 'assistant',
@@ -376,6 +634,10 @@ export class ChatComponent implements OnInit, AfterViewChecked {
       }
     ]);
     this.shouldScroll = true;
+  }
+
+  ngOnDestroy(): void {
+    this.revokeSidebarPdf();
   }
 
   ngAfterViewChecked(): void {
