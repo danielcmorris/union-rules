@@ -187,7 +187,11 @@ public class GeminiService
     /// RAG answer: uses retrieved rule excerpts from the knowledge base + timesheet context
     /// to answer a specific question about a timesheet.
     /// </summary>
-    public async Task<string> AnswerWithRulesAsync(string question, string ruleExcerpts, string? timesheetContext)
+    public async Task<string> AnswerWithRulesAsync(
+        string question,
+        string ruleExcerpts,
+        string? timesheetContext,
+        List<ConversationMessage>? conversationHistory = null)
     {
         var modelName = $"projects/{_projectId}/locations/{Location}/publishers/google/models/{Model}";
 
@@ -205,7 +209,9 @@ public class GeminiService
                                "Use the contract excerpts to ground your answer in the actual rules, and apply them to the specific timesheet provided. " +
                                "Be specific: show your work, reference the relevant rules, and give a clear, numeric answer where applicable. " +
                                "Do not rely on general assumptions instead of specific contract language. Use only the data provided in the documentation." +
-                               
+                               "If the requested Question is simply 'Validate' then review the timesheet data and contract rules to ensure compliance and respond with 'Validated' if all rules are met, or 'Invalid'+explanation if any rule is violated. " +
+
+
                                 "═══════════════════════════════════════\n" +
                                 "TERMINOLOGY\n" +
                                 "═══════════════════════════════════════\n" +
@@ -222,11 +228,21 @@ public class GeminiService
                                 "- Use 'Double Time' for weekend/holiday hours — never call them 'Premium Time'.\n" +
                                 "- Never give a vague answer when specific data is available in the provided context." +
                                 "- Keep Responses concise and focused on the question. Do not add extraneous information that is not relevant to the specific question asked." +
-                                "- If the question is unanswerable based on the provided rules and timesheet context, say 'I don't know'"
+                                "- If the question is unanswerable based on the provided rules and timesheet context, explain what other information you need in order to answer it, and why the provided information is insufficient."
                     }
                 }
             }
         };
+
+        // Inject conversation history before the current user message
+        foreach (var msg in conversationHistory ?? [])
+        {
+            generateRequest.Contents.Add(new Content
+            {
+                Role  = msg.Role == "assistant" ? "model" : "user",
+                Parts = { new Part { Text = msg.Content } }
+            });
+        }
 
         var userPrompt = new StringBuilder();
 

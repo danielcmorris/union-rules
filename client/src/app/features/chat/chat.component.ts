@@ -51,7 +51,7 @@ import { ChatMessage } from '../../core/models/chat.model';
         </div>
         <div class="gemini-badge">
           <mat-icon class="gemini-icon">auto_awesome</mat-icon>
-          Powered by Gemini
+          Powered by Vertex AI
         </div>
       </div>
 
@@ -405,7 +405,7 @@ export class ChatComponent implements OnInit, AfterViewChecked {
       content: m.content
     }));
 
-    this.chatService.ask({ question: text, conversationHistory: history }).subscribe({
+    this.chatService.searchVertexAi({ question: text, conversationHistory: history }).subscribe({
       next: (res) => {
         const assistantMessage: ChatMessage = {
           role: 'assistant',

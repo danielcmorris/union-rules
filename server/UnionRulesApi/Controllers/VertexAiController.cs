@@ -27,7 +27,8 @@ public class VertexAiController : ControllerBase
         var answer = await _geminiService.AnswerWithRulesAsync(
             request.Question,
             ruleExcerpts,
-            request.TimesheetContext);
+            request.TimesheetContext,
+            request.ConversationHistory);
 
         return Ok(new VertexAiSearchResponse { Answer = answer });
     }
