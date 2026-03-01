@@ -16,6 +16,11 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () => import('./features/chat/chat.component').then(m => m.ChatComponent)
   },
+  {
+    path: 'docs',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/docs/docs.component').then(m => m.DocsComponent)
+  },
   { path: '', redirectTo: 'calculator', pathMatch: 'full' },
   { path: '**', redirectTo: 'calculator' }
 ];

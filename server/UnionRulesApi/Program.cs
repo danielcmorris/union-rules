@@ -10,6 +10,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<GeminiService>();
 builder.Services.AddSingleton<VertexAiService>();
+builder.Services.AddSingleton<DocsService>();
 
 builder.Services.AddCors(options =>
 {

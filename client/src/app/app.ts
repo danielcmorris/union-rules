@@ -30,6 +30,10 @@ import { AuthService } from './core/auth/auth.service';
                routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">
               Ask Gemini
             </a>
+            <a class="nav-link" routerLink="/docs"
+               routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">
+              Rules &amp; Docs
+            </a>
           </div>
 
           <div class="nav-user">

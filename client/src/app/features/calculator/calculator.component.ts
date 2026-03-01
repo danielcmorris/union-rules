@@ -1353,12 +1353,16 @@ export class CalculatorComponent implements OnInit {
 
     this.timesheetService.getTimesheetCalc(id).subscribe({
       next: (rows) => {
-        this.calcRows.set(rows);
         this.loadingTs.set(false);
+        if (!rows || rows.length === 0) {
+          this.loadError.set(`Timesheet #${id} not found.`);
+        } else {
+          this.calcRows.set(rows);
+        }
       },
       error: (err) => {
-        this.loadError.set(err?.message ?? 'Failed to load timesheet.');
         this.loadingTs.set(false);
+        this.loadError.set(err?.message ?? 'Failed to load timesheet.');
       }
     });
   }
