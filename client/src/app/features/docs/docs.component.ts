@@ -20,11 +20,6 @@ import { DocFile } from '../../core/models/docs.model';
               @if (syncing()) { <span class="spinner-sm"></span> } @else { ↺ }
               Sync to AI
             </button>
-            <button class="btn-upload" [disabled]="uploading()" (click)="triggerUpload()">
-              @if (uploading()) { <span class="spinner-sm"></span> } @else { ↑ }
-              Upload PDF
-            </button>
-            <input #pdfInput type="file" accept=".pdf" style="display:none" (change)="onPdfSelected($event)"/>
             <button class="btn-new" (click)="startNewFile()">+ New File</button>
           </div>
           @if (syncStatus()) {
@@ -83,8 +78,29 @@ import { DocFile } from '../../core/models/docs.model';
             <span class="editor-filename">{{ selectedFile() }}</span>
           </div>
         } @else {
-          <div class="editor-empty">
-            <p>Select a file to edit, or click <strong>+ New File</strong>.</p>
+          <div class="drop-zone"
+               [class.drag-over]="dragOver()"
+               [class.uploading]="uploading()"
+               (click)="triggerUpload()"
+               (dragover)="onDragOver($event)"
+               (dragleave)="onDragLeave($event)"
+               (drop)="onDrop($event)">
+            <input type="file" accept=".pdf" style="display:none" (change)="onPdfSelected($event)"/>
+            @if (uploading()) {
+              <div class="dz-spinner"></div>
+              <p class="dz-label">Uploading…</p>
+            } @else {
+              <svg class="dz-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <p class="dz-label">
+                @if (dragOver()) { Drop to upload PDF } @else { Drop a PDF here }
+              </p>
+              <p class="dz-sub">or click to browse · select a file from the list to edit text</p>
+            }
           </div>
         }
 
@@ -312,15 +328,56 @@ import { DocFile } from '../../core/models/docs.model';
     }
     .filename-input::placeholder { color: var(--text-muted); }
 
-    .editor-empty {
+    .drop-zone {
       flex: 1;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
+      gap: 0.6rem;
+      margin: 2rem;
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
       color: var(--text-muted);
-      font-size: 0.9rem;
+      user-select: none;
     }
-    .editor-empty strong { color: var(--text-secondary); }
+    .drop-zone:hover,
+    .drop-zone.drag-over {
+      border-color: var(--primary);
+      background: var(--primary-light);
+      color: var(--primary);
+    }
+    .drop-zone.uploading { cursor: default; pointer-events: none; }
+
+    .dz-icon {
+      width: 40px;
+      height: 40px;
+      opacity: 0.6;
+    }
+    .drop-zone:hover .dz-icon,
+    .drop-zone.drag-over .dz-icon { opacity: 1; }
+
+    .dz-label {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin: 0;
+    }
+    .dz-sub {
+      font-size: 0.78rem;
+      margin: 0;
+      opacity: 0.7;
+    }
+
+    .dz-spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
 
     .editor-area {
       flex: 1;
@@ -355,23 +412,6 @@ import { DocFile } from '../../core/models/docs.model';
       margin-left: 0.35rem;
       vertical-align: middle;
     }
-
-    .btn-upload {
-      background: #16a34a;
-      border: none;
-      color: #fff;
-      font-size: 0.75rem;
-      font-weight: 600;
-      padding: 0.25rem 0.6rem;
-      border-radius: 5px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 0.3rem;
-      transition: background 0.15s;
-    }
-    .btn-upload:hover:not(:disabled) { background: #15803d; }
-    .btn-upload:disabled { opacity: 0.5; cursor: not-allowed; }
 
     .editor-toolbar {
       display: flex;
@@ -451,6 +491,7 @@ export class DocsComponent implements OnInit, OnDestroy {
   readonly syncing        = signal(false);
   readonly syncStatus     = signal<string | null>(null);
   readonly uploading      = signal(false);
+  readonly dragOver       = signal(false);
   readonly pdfUrl         = signal<string | null>(null);
 
   readonly isPdf = computed(() => {
@@ -558,15 +599,37 @@ export class DocsComponent implements OnInit, OnDestroy {
   onPdfSelected(event: Event) {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
+    this.uploadFile(file);
+    (event.target as HTMLInputElement).value = '';
+  }
+
+  onDragOver(event: DragEvent) {
+    event.preventDefault();
+    this.dragOver.set(true);
+  }
+
+  onDragLeave(event: DragEvent) {
+    const related = event.relatedTarget as Node | null;
+    if (!related || !(event.currentTarget as HTMLElement).contains(related)) {
+      this.dragOver.set(false);
+    }
+  }
+
+  onDrop(event: DragEvent) {
+    event.preventDefault();
+    this.dragOver.set(false);
+    const file = event.dataTransfer?.files[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.pdf')) return;
+    this.uploadFile(file);
+  }
+
+  private uploadFile(file: File) {
     this.uploading.set(true);
     this.docsService.uploadPdf(file.name, file).subscribe({
-      next: () => {
-        this.uploading.set(false);
-        this.loadFiles();
-      },
+      next: () => { this.uploading.set(false); this.loadFiles(); },
       error: () => this.uploading.set(false)
     });
-    (event.target as HTMLInputElement).value = '';
   }
 
   private revokePdfUrl() {
