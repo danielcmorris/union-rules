@@ -1,6 +1,7 @@
 using System.Text;
 using Google.Apis.Auth.OAuth2;
 using Google.Cloud.AIPlatform.V1;
+using UnionRulesApi.Models;
 using ChatExplainRequest = UnionRulesApi.Models.ExplainRequest;
 
 namespace UnionRulesApi.Services;
