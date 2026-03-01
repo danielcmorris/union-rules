@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { DocFile } from '../models/docs.model';
 
@@ -36,6 +36,19 @@ export class DocsService {
     return this.http.delete<void>(this.base, {
       params: { name }
     });
+  }
+
+  uploadPdf(name: string, file: File): Observable<void> {
+    const form = new FormData();
+    form.append('file', file, name);
+    return this.http.post<void>(`${this.base}/upload`, form);
+  }
+
+  getPdfBlob(name: string): Observable<string> {
+    return this.http.get(`${this.base}/file`, {
+      params: { name },
+      responseType: 'blob'
+    }).pipe(map(blob => URL.createObjectURL(blob)));
   }
 
   triggerSync(): Observable<{ message: string }> {

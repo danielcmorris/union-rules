@@ -56,6 +56,27 @@ public class DocsController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("upload")]
+    [RequestSizeLimit(104_857_600)]
+    public async Task<IActionResult> Upload(IFormFile file)
+    {
+        if (file == null || file.Length == 0) return BadRequest("No file provided.");
+        var name = file.FileName;
+        if (!IsValidName(name)) return BadRequest("Invalid file name.");
+        if (!name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) return BadRequest("Only PDF files are accepted.");
+        using var stream = file.OpenReadStream();
+        await _docs.UploadPdfAsync(name, stream);
+        return NoContent();
+    }
+
+    [HttpGet("file")]
+    public async Task<IActionResult> GetFile([FromQuery] string name)
+    {
+        if (!IsValidName(name)) return BadRequest("Invalid file name.");
+        var (stream, contentType) = await _docs.GetFileStreamAsync(name);
+        return File(stream, contentType, enableRangeProcessing: true);
+    }
+
     [HttpPost("sync")]
     public async Task<IActionResult> Sync()
     {

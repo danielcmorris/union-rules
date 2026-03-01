@@ -1,5 +1,6 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { DocsService } from '../../core/services/docs.service';
 import { DocFile } from '../../core/models/docs.model';
 
@@ -19,6 +20,11 @@ import { DocFile } from '../../core/models/docs.model';
               @if (syncing()) { <span class="spinner-sm"></span> } @else { ↺ }
               Sync to AI
             </button>
+            <button class="btn-upload" [disabled]="uploading()" (click)="triggerUpload()">
+              @if (uploading()) { <span class="spinner-sm"></span> } @else { ↑ }
+              Upload PDF
+            </button>
+            <input #pdfInput type="file" accept=".pdf" style="display:none" (change)="onPdfSelected($event)"/>
             <button class="btn-new" (click)="startNewFile()">+ New File</button>
           </div>
           @if (syncStatus()) {
@@ -36,7 +42,12 @@ import { DocFile } from '../../core/models/docs.model';
               <li class="file-item" [class.selected]="selectedFile() === f.name"
                   (click)="selectFile(f.name)">
                 <div class="file-info">
-                  <span class="file-name">{{ f.name }}</span>
+                  <span class="file-name">
+                    {{ f.name }}
+                    @if (f.contentType === 'application/pdf') {
+                      <span class="pdf-badge">PDF</span>
+                    }
+                  </span>
                   <span class="file-meta">{{ formatSize(f.size) }} · {{ formatDate(f.updated) }}</span>
                 </div>
                 <button class="btn-delete" title="Delete"
@@ -80,6 +91,12 @@ import { DocFile } from '../../core/models/docs.model';
         @if (selectedFile() || isNewFile()) {
           @if (loadingContent()) {
             <div class="spinner-wrap"><div class="spinner"></div></div>
+          } @else if (isPdf()) {
+            @if (pdfUrl()) {
+              <embed class="pdf-viewer" [src]="safePdfUrl()!" type="application/pdf"/>
+            } @else {
+              <div class="spinner-wrap"><div class="spinner"></div></div>
+            }
           } @else {
             <textarea class="editor-area"
                       [value]="content()"
@@ -87,20 +104,22 @@ import { DocFile } from '../../core/models/docs.model';
                       spellcheck="false" placeholder="File content..."></textarea>
           }
 
-          <div class="editor-toolbar">
-            <button class="btn-save" [disabled]="saving()" (click)="save()">
-              @if (saving()) {
-                <span class="spinner-sm"></span> Saving…
-              } @else {
-                Save
+          @if (!isPdf()) {
+            <div class="editor-toolbar">
+              <button class="btn-save" [disabled]="saving()" (click)="save()">
+                @if (saving()) {
+                  <span class="spinner-sm"></span> Saving…
+                } @else {
+                  Save
+                }
+              </button>
+              @if (saveStatus()) {
+                <span class="save-status" [class.error]="saveStatus()!.startsWith('Error')">
+                  {{ saveStatus() }}
+                </span>
               }
-            </button>
-            @if (saveStatus()) {
-              <span class="save-status" [class.error]="saveStatus()!.startsWith('Error')">
-                {{ saveStatus() }}
-              </span>
-            }
-          </div>
+            </div>
+          }
         }
       </section>
 
@@ -317,6 +336,43 @@ import { DocFile } from '../../core/models/docs.model';
       overflow-y: auto;
     }
 
+    .pdf-viewer {
+      flex: 1;
+      width: 100%;
+      border: none;
+      background: var(--surface);
+    }
+
+    .pdf-badge {
+      display: inline-block;
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: #fff;
+      background: #dc2626;
+      border-radius: 3px;
+      padding: 0.05rem 0.3rem;
+      margin-left: 0.35rem;
+      vertical-align: middle;
+    }
+
+    .btn-upload {
+      background: #16a34a;
+      border: none;
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.25rem 0.6rem;
+      border-radius: 5px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      transition: background 0.15s;
+    }
+    .btn-upload:hover:not(:disabled) { background: #15803d; }
+    .btn-upload:disabled { opacity: 0.5; cursor: not-allowed; }
+
     .editor-toolbar {
       display: flex;
       align-items: center;
@@ -379,8 +435,9 @@ import { DocFile } from '../../core/models/docs.model';
     @keyframes spin { to { transform: rotate(360deg); } }
   `]
 })
-export class DocsComponent implements OnInit {
+export class DocsComponent implements OnInit, OnDestroy {
   private readonly docsService = inject(DocsService);
+  private readonly sanitizer   = inject(DomSanitizer);
 
   readonly files          = signal<DocFile[]>([]);
   readonly loadingFiles   = signal(true);
@@ -393,9 +450,27 @@ export class DocsComponent implements OnInit {
   readonly newFileName    = signal('');
   readonly syncing        = signal(false);
   readonly syncStatus     = signal<string | null>(null);
+  readonly uploading      = signal(false);
+  readonly pdfUrl         = signal<string | null>(null);
+
+  readonly isPdf = computed(() => {
+    const name = this.selectedFile();
+    if (!name) return false;
+    const file = this.files().find(f => f.name === name);
+    return file?.contentType === 'application/pdf';
+  });
+
+  safePdfUrl(): SafeResourceUrl | null {
+    const url = this.pdfUrl();
+    return url ? this.sanitizer.bypassSecurityTrustResourceUrl(url) : null;
+  }
 
   ngOnInit() {
     this.loadFiles();
+  }
+
+  ngOnDestroy() {
+    this.revokePdfUrl();
   }
 
   private loadFiles() {
@@ -411,20 +486,29 @@ export class DocsComponent implements OnInit {
 
   selectFile(name: string) {
     this.isNewFile.set(false);
+    this.revokePdfUrl();
     this.selectedFile.set(name);
     this.saveStatus.set(null);
     this.content.set('');
-    this.loadingContent.set(true);
-    this.docsService.getContent(name).subscribe({
-      next: text => {
-        this.content.set(text);
-        this.loadingContent.set(false);
-      },
-      error: () => this.loadingContent.set(false)
-    });
+
+    const file = this.files().find(f => f.name === name);
+    if (file?.contentType === 'application/pdf') {
+      this.loadingContent.set(true);
+      this.docsService.getPdfBlob(name).subscribe({
+        next: url => { this.pdfUrl.set(url); this.loadingContent.set(false); },
+        error: ()  => this.loadingContent.set(false)
+      });
+    } else {
+      this.loadingContent.set(true);
+      this.docsService.getContent(name).subscribe({
+        next: text => { this.content.set(text); this.loadingContent.set(false); },
+        error: ()  => this.loadingContent.set(false)
+      });
+    }
   }
 
   startNewFile() {
+    this.revokePdfUrl();
     this.selectedFile.set(null);
     this.isNewFile.set(true);
     this.content.set('');
@@ -465,6 +549,29 @@ export class DocsComponent implements OnInit {
         error: e => onDone(e?.message ?? 'Save failed')
       });
     }
+  }
+
+  triggerUpload() {
+    document.querySelector<HTMLInputElement>('input[type=file][accept=".pdf"]')?.click();
+  }
+
+  onPdfSelected(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    this.uploading.set(true);
+    this.docsService.uploadPdf(file.name, file).subscribe({
+      next: () => {
+        this.uploading.set(false);
+        this.loadFiles();
+      },
+      error: () => this.uploading.set(false)
+    });
+    (event.target as HTMLInputElement).value = '';
+  }
+
+  private revokePdfUrl() {
+    const url = this.pdfUrl();
+    if (url) { URL.revokeObjectURL(url); this.pdfUrl.set(null); }
   }
 
   sync() {

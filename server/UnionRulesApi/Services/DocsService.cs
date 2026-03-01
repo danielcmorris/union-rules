@@ -27,9 +27,10 @@ public class DocsService
         {
             files.Add(new DocFile
             {
-                Name    = obj.Name,
-                Size    = (long)(obj.Size ?? 0),
-                Updated = obj.UpdatedDateTimeOffset?.ToString("o") ?? ""
+                Name        = obj.Name,
+                Size        = (long)(obj.Size ?? 0),
+                Updated     = obj.UpdatedDateTimeOffset?.ToString("o") ?? "",
+                ContentType = obj.ContentType ?? "text/plain"
             });
         }
         return files;
@@ -47,6 +48,20 @@ public class DocsService
         var bytes = Encoding.UTF8.GetBytes(content);
         using var ms = new MemoryStream(bytes);
         await _storage.UploadObjectAsync(Bucket, name, "text/plain", ms);
+    }
+
+    public async Task UploadPdfAsync(string name, Stream pdfStream)
+    {
+        await _storage.UploadObjectAsync(Bucket, name, "application/pdf", pdfStream);
+    }
+
+    public async Task<(Stream stream, string contentType)> GetFileStreamAsync(string name)
+    {
+        var obj = await _storage.GetObjectAsync(Bucket, name);
+        var ms  = new MemoryStream();
+        await _storage.DownloadObjectAsync(Bucket, name, ms);
+        ms.Position = 0;
+        return (ms, obj.ContentType ?? "application/octet-stream");
     }
 
     public async Task DeleteFileAsync(string name)
