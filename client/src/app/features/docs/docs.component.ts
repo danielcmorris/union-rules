@@ -9,24 +9,64 @@ import { DocFile } from '../../core/models/docs.model';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="docs-layout">
+    <div class="docs-wrapper">
+
+      <!-- ── Toolbar ── -->
+      <div class="docs-toolbar">
+        <input type="file" id="toolbar-file-input" accept=".pdf" style="display:none"
+               (change)="onPdfSelected($event)"/>
+
+        <div class="toolbar-left"></div>
+
+        <div class="toolbar-center">
+          @if (syncing()) {
+            <span class="tb-status syncing">
+              <span class="spinner-sm-dark"></span> Syncing…
+            </span>
+          } @else if (syncStatus()) {
+            <span class="tb-status" [class.tb-error]="syncStatus()!.startsWith('Sync failed')">
+              {{ syncStatus() }}
+            </span>
+          } @else if (lastSyncDate()) {
+            <span class="tb-status muted">Last synced: {{ lastSyncDate() }}</span>
+          }
+        </div>
+
+        <div class="toolbar-right">
+          <button class="tb-btn tb-ghost" (click)="startNewFile()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Text File
+          </button>
+          <button class="tb-btn tb-ghost" (click)="triggerToolbarUpload()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Upload File
+          </button>
+          <button class="tb-btn tb-primary" [disabled]="syncing()" (click)="sync()">
+            @if (syncing()) { <span class="spinner-sm"></span> } @else {
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 4 23 10 17 10"/>
+                <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+              </svg>
+            }
+            Start Sync
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Main layout ── -->
+      <div class="docs-layout">
 
       <!-- File list panel -->
       <aside class="file-panel">
         <div class="panel-header">
           <span class="panel-title">Files</span>
-          <div class="header-actions">
-            <button class="btn-sync" [disabled]="syncing()" (click)="sync()">
-              @if (syncing()) { <span class="spinner-sm"></span> } @else { ↺ }
-              Sync to AI
-            </button>
-            <button class="btn-new" (click)="startNewFile()">+ New File</button>
-          </div>
-          @if (syncStatus()) {
-            <span class="sync-status" [class.error]="syncStatus()!.startsWith('Sync failed')">
-              {{ syncStatus() }}
-            </span>
-          }
         </div>
 
         @if (loadingFiles()) {
@@ -139,14 +179,103 @@ import { DocFile } from '../../core/models/docs.model';
         }
       </section>
 
-    </div>
+      </div><!-- /docs-layout -->
+    </div><!-- /docs-wrapper -->
   `,
   styles: [`
     :host { display: block; height: calc(100vh - 56px); }
 
+    /* ── Wrapper + Toolbar ── */
+    .docs-wrapper {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .docs-toolbar {
+      display: flex;
+      align-items: center;
+      height: 46px;
+      flex-shrink: 0;
+      padding: 0 1.25rem;
+      gap: 1rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .toolbar-left { flex: 1; }
+
+    .toolbar-center {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .toolbar-right {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.5rem;
+    }
+
+    /* toolbar status label */
+    .tb-status {
+      font-size: 0.78rem;
+      color: #16a34a;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .tb-status.muted   { color: var(--text-muted); }
+    .tb-status.tb-error { color: #dc2626; }
+    .tb-status.syncing { color: var(--primary); }
+
+    /* toolbar buttons */
+    .tb-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.78rem;
+      font-weight: 500;
+      padding: 0.28rem 0.75rem;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+    .tb-ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+    .tb-ghost:hover {
+      background: var(--primary-light);
+      border-color: rgba(58,109,199,0.4);
+      color: var(--primary);
+    }
+    .tb-primary {
+      background: var(--primary);
+      border: none;
+      color: #fff;
+    }
+    .tb-primary:hover:not(:disabled) { background: #2d5ba8; }
+    .tb-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .spinner-sm-dark {
+      display: inline-block;
+      width: 11px;
+      height: 11px;
+      border: 2px solid rgba(58,109,199,0.25);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    /* ── Docs layout ── */
     .docs-layout {
       display: flex;
-      height: 100%;
+      flex: 1;
       overflow: hidden;
       background: var(--page-bg);
     }
@@ -177,55 +306,6 @@ import { DocFile } from '../../core/models/docs.model';
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: var(--text-muted);
-    }
-
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-    }
-
-    .sync-status {
-      display: block;
-      padding: 0.25rem 1rem;
-      font-size: 0.75rem;
-      color: #16a34a;
-      border-bottom: 1px solid var(--border);
-      background: var(--surface);
-    }
-    .sync-status.error { color: #dc2626; }
-
-    .btn-sync {
-      background: var(--primary);
-      border: none;
-      color: #fff;
-      font-size: 0.75rem;
-      font-weight: 600;
-      padding: 0.25rem 0.6rem;
-      border-radius: 5px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 0.3rem;
-      transition: background 0.15s;
-    }
-    .btn-sync:hover:not(:disabled) { background: #2d5ba8; }
-    .btn-sync:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    .btn-new {
-      background: var(--primary-light);
-      border: 1px solid rgba(58,109,199,0.3);
-      color: var(--primary);
-      font-size: 0.75rem;
-      font-weight: 500;
-      padding: 0.25rem 0.6rem;
-      border-radius: 5px;
-      cursor: pointer;
-      transition: background 0.15s, border-color 0.15s;
-    }
-    .btn-new:hover {
-      background: #d5e4f7;
-      border-color: var(--primary);
     }
 
     .file-list {
@@ -490,6 +570,7 @@ export class DocsComponent implements OnInit, OnDestroy {
   readonly newFileName    = signal('');
   readonly syncing        = signal(false);
   readonly syncStatus     = signal<string | null>(null);
+  readonly lastSyncDate   = signal<string | null>(null);
   readonly uploading      = signal(false);
   readonly dragOver       = signal(false);
   readonly pdfUrl         = signal<string | null>(null);
@@ -596,6 +677,10 @@ export class DocsComponent implements OnInit, OnDestroy {
     document.querySelector<HTMLInputElement>('input[type=file][accept=".pdf"]')?.click();
   }
 
+  triggerToolbarUpload() {
+    document.getElementById('toolbar-file-input')?.click();
+  }
+
   onPdfSelected(event: Event) {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
@@ -641,7 +726,11 @@ export class DocsComponent implements OnInit, OnDestroy {
     this.syncing.set(true);
     this.syncStatus.set(null);
     this.docsService.triggerSync().subscribe({
-      next: () => { this.syncing.set(false); this.syncStatus.set('Sync started ✓'); },
+      next: () => {
+          this.syncing.set(false);
+          this.syncStatus.set('Sync started ✓');
+          this.lastSyncDate.set(new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }));
+        },
       error: () => { this.syncing.set(false); this.syncStatus.set('Sync failed'); }
     });
   }

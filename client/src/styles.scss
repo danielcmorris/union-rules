@@ -29,6 +29,22 @@ html {
   --radius:        10px;
 }
 
+/* ── Shared: AI doc citation links ────────────────────────────────────────── */
+/* Applied via [innerHTML] so must live in global styles, not component scope. */
+a.doc-link {
+  display: inline;
+  color: #5c4799;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(92,71,153,0.4);
+  font-size: 0.85em;
+  font-weight: 500;
+  transition: color 0.15s, border-color 0.15s;
+}
+a.doc-link:hover {
+  color: #3d3080;
+  border-bottom-color: rgba(61,48,128,0.7);
+}
+
 /* ── Base reset ──────────────────────────────────────────────────────────── */
 *, *::before, *::after {
   margin: 0;

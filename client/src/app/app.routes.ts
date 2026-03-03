@@ -12,6 +12,11 @@ export const routes: Routes = [
     loadComponent: () => import('./features/calculator/calculator.component').then(m => m.CalculatorComponent)
   },
   {
+    path: 'estimate',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/estimate/estimate.component').then(m => m.EstimateComponent)
+  },
+  {
     path: 'chat',
     canActivate: [authGuard],
     loadComponent: () => import('./features/chat/chat.component').then(m => m.ChatComponent)

@@ -26,6 +26,10 @@ import { AuthService } from './core/auth/auth.service';
                routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">
               Calculator
             </a>
+            <a class="nav-link" routerLink="/estimate"
+               routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">
+              Pay Estimate
+            </a>
             <a class="nav-link" routerLink="/chat"
                routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">
               Ask Gemini

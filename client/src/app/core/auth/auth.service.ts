@@ -34,19 +34,41 @@ export class AuthService {
     }
   }
 
+  private gsiReady: Promise<void> | null = null;
+
+  private loadGsiScript(): Promise<void> {
+    if (this.gsiReady) return this.gsiReady;
+    if ((window as any).google?.accounts) {
+      this.gsiReady = Promise.resolve();
+      return this.gsiReady;
+    }
+    this.gsiReady = new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.onload = () => resolve();
+      document.head.appendChild(script);
+    });
+    return this.gsiReady;
+  }
+
   initializeGoogleSignIn(): void {
-    (window as any).google?.accounts.id.initialize({
-      client_id: environment.googleClientId,
-      callback: (response: { credential: string }) => this.handleCredential(response.credential),
-      auto_select: true,
+    this.loadGsiScript().then(() => {
+      (window as any).google.accounts.id.initialize({
+        client_id: environment.googleClientId,
+        callback: (response: { credential: string }) => this.handleCredential(response.credential),
+        auto_select: true,
+      });
     });
   }
 
   renderSignInButton(elementId: string): void {
-    (window as any).google?.accounts.id.renderButton(
-      document.getElementById(elementId),
-      { theme: 'outline', size: 'large', width: 280 }
-    );
+    this.loadGsiScript().then(() => {
+      (window as any).google.accounts.id.renderButton(
+        document.getElementById(elementId),
+        { theme: 'outline', size: 'large', width: 280 }
+      );
+    });
   }
 
   private handleCredential(idToken: string): void {
@@ -65,6 +87,7 @@ export class AuthService {
         this.currentUser.set(fullUser);
         this.sid.set(sid);
         this.isAuthenticated.set(true);
+        this.triggerFileSync(idToken);
         this.router.navigate(['/calculator']);
       },
       error: () => {
@@ -72,6 +95,7 @@ export class AuthService {
         sessionStorage.setItem('google_user', JSON.stringify(user));
         this.currentUser.set(user);
         this.isAuthenticated.set(true);
+        this.triggerFileSync(idToken);
         this.router.navigate(['/calculator']);
       }
     });
@@ -95,6 +119,17 @@ export class AuthService {
     ).pipe(
       map(response => response.sessionId)
     );
+  }
+
+  private triggerFileSync(idToken: string): void {
+    // Fire-and-forget — warms the server-side Gemini file cache for this session.
+    // Uses HttpBackend (bypasses auth interceptor) with manual Bearer header to avoid
+    // circular dependency, since the interceptor itself injects AuthService.
+    this.http.post(
+      `${environment.chatServer}/api/sync`,
+      {},
+      { headers: { Authorization: `Bearer ${idToken}` } }
+    ).subscribe({ error: () => {} });
   }
 
   signOut(): void {

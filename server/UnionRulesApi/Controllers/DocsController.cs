@@ -10,11 +10,13 @@ public class DocsController : ControllerBase
 {
     private readonly DocsService _docs;
     private readonly VertexAiService _vertexAiService;
+    private readonly GenAiFileSyncService _fileSync;
 
-    public DocsController(DocsService docs, VertexAiService vertexAiService)
+    public DocsController(DocsService docs, VertexAiService vertexAiService, GenAiFileSyncService fileSync)
     {
-        _docs = docs;
+        _docs            = docs;
         _vertexAiService = vertexAiService;
+        _fileSync        = fileSync;
     }
 
     [HttpGet]
@@ -37,6 +39,7 @@ public class DocsController : ControllerBase
     {
         if (!IsValidName(name)) return BadRequest("Invalid file name.");
         await _docs.SaveContentAsync(name, request.Content);
+        _ = _fileSync.SyncAsync();
         return NoContent();
     }
 
@@ -45,6 +48,7 @@ public class DocsController : ControllerBase
     {
         if (!IsValidName(name)) return BadRequest("Invalid file name.");
         await _docs.SaveContentAsync(name, request.Content);
+        _ = _fileSync.SyncAsync();
         return NoContent();
     }
 
@@ -53,6 +57,7 @@ public class DocsController : ControllerBase
     {
         if (!IsValidName(name)) return BadRequest("Invalid file name.");
         await _docs.DeleteFileAsync(name);
+        _ = _fileSync.SyncAsync();
         return NoContent();
     }
 
@@ -66,6 +71,7 @@ public class DocsController : ControllerBase
         if (!name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) return BadRequest("Only PDF files are accepted.");
         using var stream = file.OpenReadStream();
         await _docs.UploadPdfAsync(name, stream);
+        _ = _fileSync.SyncAsync();
         return NoContent();
     }
 
@@ -81,6 +87,7 @@ public class DocsController : ControllerBase
     public async Task<IActionResult> Sync()
     {
         await _vertexAiService.TriggerImportAsync();
+        _ = _fileSync.SyncAsync();
         return Ok(new { message = "Sync started. The index will be updated within a few minutes." });
     }
 

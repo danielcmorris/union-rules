@@ -94,10 +94,10 @@ type MsgSeg  = TextSeg | DocSeg;
                   @for (seg of parseSegments(msg.content); track $index) {
                     @if (seg.kind === 'text') {{{ seg.value }}}
                     @else {
-                      <button class="doc-chip" (click)="openDoc(seg.name)" title="View source document">
+                      <a class="doc-chip" [href]="getDocUrl(seg.name)" target="_blank" rel="noopener" title="Open source document">
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                         {{ seg.name }}
-                      </button>
+                      </a>
                     }
                   }
                 </div>
@@ -393,6 +393,7 @@ type MsgSeg  = TextSeg | DocSeg;
       display: inline-flex;
       align-items: center;
       gap: 0.25rem;
+      text-decoration: none;
       background: rgba(92,71,153,0.12);
       border: 1px solid rgba(92,71,153,0.3);
       color: #5c4799;
@@ -556,7 +557,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   currentInput = '';
   private shouldScroll = false;
 
-  private static readonly DOC_REGEX = /\[([A-Z0-9][A-Z0-9 _\-]{1,49})\]/g;
+  private static readonly DOC_REGEX = /\[([A-Za-z0-9][A-Za-z0-9 _\-\.]{1,79})\](?!\()/g;
 
   safeSidebarPdfUrl(): SafeResourceUrl | null {
     const url = this.sidebarPdfUrl();
@@ -574,6 +575,16 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     }
     if (last < text.length) segs.push({ kind: 'text', value: text.slice(last) });
     return segs;
+  }
+
+  getDocUrl(bracketName: string): string {
+    const normalized = bracketName.replace(/\.[^.]+$/, '').toUpperCase().replace(/\s+/g, '-');
+    const match = this.docFiles().find(f => {
+      const base = f.name.replace(/\.[^.]+$/, '').toUpperCase().replace(/\s+/g, '-');
+      return base === normalized;
+    });
+    const filename = match?.name ?? bracketName;
+    return `/api/docs/file?name=${encodeURIComponent(filename)}`;
   }
 
   openDoc(bracketName: string) {

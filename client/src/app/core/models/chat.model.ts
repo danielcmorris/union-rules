@@ -16,6 +16,7 @@ export interface ChatResponse {
 
 export interface VertexAiRequest {
   question: string;
+  searchQuery?: string;
   timesheetContext?: string;
   conversationHistory?: { role: string; content: string }[];
 }
