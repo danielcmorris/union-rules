@@ -6,7 +6,7 @@ import {
   TimesheetCalculationRequest,
   TimesheetCalculationResult
 } from '../models/timesheet.model';
-import { TimesheetCalcRow, TimeSheetApiResponse, UserApiResponse } from '../models/timesheet-api.model';
+import { TimesheetListItem, TimesheetCalcRow, TimeSheetApiResponse, UserApiResponse } from '../models/timesheet-api.model';
 
 // ── Mock data ───────────────────────────────────────────────────────────────
 
@@ -97,6 +97,13 @@ export class TimesheetService {
   getUser(employeeId: number): Observable<UserApiResponse[]> {
     return this.http.get<UserApiResponse[]>(
       `${environment.server}/api/User/${employeeId}`
+    );
+  }
+
+  getTimesheetList(startDate: string, endDate: string, sid: string): Observable<TimesheetListItem[]> {
+    return this.http.get<TimesheetListItem[]>(
+      `${environment.chatServer}/api/timesheet`,
+      { params: { startDate, endDate, sid } }
     );
   }
 }

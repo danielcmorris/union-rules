@@ -9,6 +9,8 @@
   <ItemGroup>
     <PackageReference Include="Google.Cloud.AIPlatform.V1" Version="3.*" />
     <PackageReference Include="Google.Cloud.Storage.V1" Version="4.*" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.*" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.4" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
   </ItemGroup>
 

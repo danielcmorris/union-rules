@@ -34,7 +34,7 @@ import { Component } from '@angular/core';
           <p>
             On the <strong>Rules &amp; Docs</strong> page, administrators can upload multiple documents
             about the union contract and the rules regarding payment as negotiated. These documents are
-            stored in a secure cloud directory and analyzed by Google's Vertex AI service.
+            stored in a secure cloud directory and analyzed by Google's Gemini AI service.
           </p>
         </section>
 
@@ -66,12 +66,12 @@ import { Component } from '@angular/core';
           <div class="step">
             <div class="step-number">2</div>
             <div class="step-body">
-              <h3>Vertex AI — Our Library Expert</h3>
+              <h3>Gemini — Our Library Expert</h3>
               <p>
                 Just as you might send a researcher to the library with a specific question, we send
-                that question to Google's Vertex AI search. It searches <em>only</em> our library and
+                that question to Google's Gemini AI. It searches <em>only</em> our library and
                 returns the specific documents and passages that are relevant. If you have 100 pages of
-                contracts but only 3 actually mention missed meals, Vertex AI finds those 3.
+                contracts but only 3 actually mention missed meals, Gemini finds those 3.
               </p>
             </div>
           </div>
@@ -81,8 +81,8 @@ import { Component } from '@angular/core';
             <div class="step-body">
               <h3>Gemini — The Analyst</h3>
               <p>
-                Gemini is Google's AI reasoning engine. Our researcher (Vertex AI) returns the relevant
-                documents, and Gemini studies them in the context of the specific timesheet data to
+                Gemini is Google's AI reasoning engine. It returns the relevant
+                documents and studies them in the context of the specific timesheet data to
                 formulate a precise, grounded response — using only what's in our library.
               </p>
             </div>

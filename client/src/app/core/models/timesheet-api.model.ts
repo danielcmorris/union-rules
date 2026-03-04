@@ -1,3 +1,13 @@
+export interface TimesheetListItem {
+  timesheetId: number;
+  timesheetDate: string;
+  foreman: string;
+  email: string;
+  status: string;
+  payType: string | null;
+  payTypeId: number;
+}
+
 export interface TimesheetCalcRow {
   timeSheetID: number;
   timeSheetDate: string;

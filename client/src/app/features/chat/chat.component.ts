@@ -59,7 +59,7 @@ type MsgSeg  = TextSeg | DocSeg;
         </div>
         <div class="gemini-badge">
           <mat-icon class="gemini-icon">auto_awesome</mat-icon>
-          Powered by Vertex AI
+          Powered by Gemini
         </div>
       </div>
 

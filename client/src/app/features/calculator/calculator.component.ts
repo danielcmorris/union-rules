@@ -6,7 +6,7 @@ import {
   computed,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { forkJoin } from 'rxjs';
 import {
@@ -32,6 +32,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { provideNativeDateAdapter } from '@angular/material/core';
 
 import { TimesheetService } from '../../core/services/timesheet.service';
+import { TimesheetsStateService } from '../../core/services/timesheets-state.service';
 import { ChatService } from '../../core/services/chat.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { UNION_PAY_RULES } from '../../core/constants/rules.constant';
@@ -54,7 +55,7 @@ const CLASS_MAP: Record<string, string> = {
   'GM': 'Groundman',
 };
 
-const EMPLOYEE_CLASSES = Object.values(CLASS_MAP);
+const EMPLOYEE_CLASSES = [...new Set(Object.values(CLASS_MAP))];
 
 
 @Component({
@@ -95,29 +96,13 @@ const EMPLOYEE_CLASSES = Object.values(CLASS_MAP);
 
         <!-- Load Timesheet -->
         <mat-card class="page-card">
-          <mat-card-header>
-            <mat-card-title>
-              <mat-icon class="section-icon">download</mat-icon>
-              Load from Timesheet
-            </mat-card-title>
-          </mat-card-header>
           <mat-card-content>
-            <div class="load-row">
-              <mat-form-field appearance="outline" class="ts-id-field">
-                <mat-label>Timesheet ID</mat-label>
-                <input matInput type="number" [formControl]="timesheetIdControl"
-                       placeholder="e.g. 3154"/>
-              </mat-form-field>
-              <button mat-flat-button color="accent" type="button"
-                      (click)="loadTimesheet()" [disabled]="loadingTs()">
-                @if (loadingTs()) {
-                  <mat-spinner diameter="18" class="btn-spinner-sm"></mat-spinner>
-                } @else {
-                  <mat-icon>search</mat-icon>
-                }
-                Load
-              </button>
-            </div>
+            @if (loadingTs()) {
+              <div class="load-row">
+                <mat-spinner diameter="24"></mat-spinner>
+                <span style="margin-left:0.5rem; color:var(--text-secondary)">Loading timesheet...</span>
+              </div>
+            }
 
             @if (loadError()) {
               <div class="load-error">{{ loadError() }}</div>
@@ -127,7 +112,8 @@ const EMPLOYEE_CLASSES = Object.values(CLASS_MAP);
               <div class="ts-meta">
                 <span class="ts-date">{{ tsDateDisplay() }}</span>
                 <span class="ts-badge">{{ calcRows()![0].yard }}</span>
-                <span class="ts-paytype">{{ calcRows()![0].tradeUnion }}</span>
+                <span class="ts-badge">{{ calcRows()![0].tradeUnion }}</span>
+                <span class="ts-paytype">{{ calcRows()![0].payType }}</span>
               </div>
               <div class="crew-list">
                 @for (c of uniqueCrew(); track c.name) {
@@ -193,12 +179,19 @@ const EMPLOYEE_CLASSES = Object.values(CLASS_MAP);
             </mat-card-content>
           </mat-card>
 
-          <!-- Ask VertexAI -->
+          <!-- AI Review Button -->
+          <button mat-flat-button color="primary" class="ai-review-btn"
+                  (click)="navigateToReview()">
+            <mat-icon>auto_awesome</mat-icon>
+            AI Review
+          </button>
+
+          <!-- Ask Gemini -->
           <mat-card class="page-card chat-inline-card">
             <mat-card-header>
               <mat-card-title>
                 <mat-icon class="section-icon" style="color:#1a73e8">search</mat-icon>
-                Ask VertexAI about {{ selectedCrewName() ?? 'this timesheet' }}
+                Ask Gemini about {{ selectedCrewName() ?? 'this timesheet' }}
               </mat-card-title>
             </mat-card-header>
             <mat-card-content>
@@ -997,6 +990,23 @@ const EMPLOYEE_CLASSES = Object.values(CLASS_MAP);
 
     .gap-warn { color: #b85c00; font-weight: 500; }
 
+    /* ── AI Review button ────────────────────────── */
+
+    .ai-review-btn {
+      width: 100%;
+      height: 46px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      background: #6a4cc7 !important;
+      color: #fff !important;
+    }
+
+    .ai-review-btn:hover { background: #5a3db5 !important; }
+
     /* ── Per-job table ────────────────────────────── */
 
     .job-breakdown-table-wrapper { overflow-x: auto; }
@@ -1211,7 +1221,10 @@ const EMPLOYEE_CLASSES = Object.values(CLASS_MAP);
 })
 export class CalculatorComponent implements OnInit {
   private readonly fb                = inject(FormBuilder);
+  private readonly route             = inject(ActivatedRoute);
+  private readonly router            = inject(Router);
   private readonly timesheetService  = inject(TimesheetService);
+  private readonly tsStateService    = inject(TimesheetsStateService);
   private readonly chatService       = inject(ChatService);
   private readonly http              = inject(HttpClient);
   readonly authService               = inject(AuthService);
@@ -1227,7 +1240,7 @@ export class CalculatorComponent implements OnInit {
   readonly rulesContent   = signal<string>('');
   chatInput = '';
 
-  // ── Inline VertexAI search ───────────────────────────────────────────────
+  // ── Inline Gemini search ────────────────────────────────────────────────
   readonly vertexMessages = signal<{ role: 'user' | 'assistant'; content: string }[]>([]);
   readonly vertexLoading  = signal(false);
   vertexInput = '';
@@ -1312,6 +1325,12 @@ export class CalculatorComponent implements OnInit {
       bonusAerialBasket:     [false],
       jobs: this.fb.array([this.createJobGroup()])
     });
+
+    const routeId = this.route.snapshot.paramMap.get('id');
+    if (routeId) {
+      this.timesheetIdControl.setValue(Number(routeId));
+      this.loadTimesheet();
+    }
   }
 
   createJobGroup(): FormGroup {
@@ -1358,6 +1377,7 @@ export class CalculatorComponent implements OnInit {
           this.loadError.set(`Timesheet #${id} not found.`);
         } else {
           this.calcRows.set(rows);
+          localStorage.setItem(`timesheet_${id}`, JSON.stringify(rows));
         }
       },
       error: (err) => {
@@ -1419,6 +1439,40 @@ export class CalculatorComponent implements OnInit {
     this.result.set(result);
     this.chatMessages.set([]);
     this.error.set(null);
+  }
+
+  // ── Navigate to AI Review ──────────────────────────────────────────────
+
+  navigateToReview(): void {
+    const rows = this.calcRows();
+    const crewName = this.selectedCrewName();
+    if (!rows || !crewName) return;
+
+    const crewRows = rows.filter(r => r.crewMember === crewName);
+    if (!crewRows.length) return;
+
+    const tsId = this.timesheetIdControl.value;
+    const firstStart = crewRows[0].startTime;
+    const lastEnd = crewRows[crewRows.length - 1].endTime;
+    const lunchTaken = crewRows.some(r => r.lunchTaken > 0);
+    const tsDate = new Date(crewRows[0].timeSheetDate);
+    const dayOfWeek = tsDate.getDay();
+    const dayType = (dayOfWeek === 0 || dayOfWeek === 6) ? 'weekend_holiday' : 'weekday';
+
+    // Get numeric payTypeId from the timesheet list (state service)
+    const listItem = this.tsStateService.timesheets.find(t => t.timesheetId == tsId);
+    const pid = listItem?.payTypeId ?? 0;
+    const workType: PayType = (pid >= 1 && pid <= 7) ? pid as PayType : 1;
+
+    this.router.navigate(['/timesheets', tsId, 'review'], {
+      state: {
+        startTime: firstStart,
+        endTime: lastEnd,
+        workType,
+        dayType,
+        lunchTaken,
+      }
+    });
   }
 
   // ── Calculate ───────────────────────────────────────────────────────────
@@ -1498,7 +1552,7 @@ export class CalculatorComponent implements OnInit {
     });
   }
 
-  // ── Inline VertexAI search ───────────────────────────────────────────────
+  // ── Inline Gemini search ────────────────────────────────────────────────
 
   onVertexSend(): void {
     const question = this.vertexInput.trim();
@@ -1517,7 +1571,7 @@ export class CalculatorComponent implements OnInit {
         this.vertexLoading.set(false);
       },
       error: () => {
-        this.vertexMessages.update(msgs => [...msgs, { role: 'assistant', content: 'Sorry, I encountered an error contacting VertexAI. Please try again.' }]);
+        this.vertexMessages.update(msgs => [...msgs, { role: 'assistant', content: 'Sorry, I encountered an error contacting Gemini. Please try again.' }]);
         this.vertexLoading.set(false);
       }
     });

@@ -4,8 +4,12 @@ import { AuthService } from './auth.service';
 import { environment } from '../../../environments/environment';
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
-  // Only attach credentials to requests going to our server
-  if (!req.url.startsWith(environment.server)) {
+  // Attach credentials to requests going to our servers or relative API calls
+  const isMainServer = req.url.startsWith(environment.server);
+  const isChatServer = environment.chatServer && req.url.startsWith(environment.chatServer);
+  const isRelativeApi = req.url.startsWith('/api/');
+
+  if (!isMainServer && !isChatServer && !isRelativeApi) {
     return next(req);
   }
 

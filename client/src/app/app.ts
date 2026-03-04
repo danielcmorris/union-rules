@@ -12,7 +12,7 @@ import { AuthService } from './core/auth/auth.service';
       <nav class="top-nav">
         <div class="nav-inner">
 
-          <a class="nav-brand" routerLink="/calculator">
+          <a class="nav-brand" routerLink="/timesheets">
             <svg width="26" height="26" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect width="48" height="48" rx="10" fill="#4a7fc1"/>
               <path d="M12 32L18 16L24 28L30 20L36 32H12Z" fill="white" opacity="0.85"/>
@@ -22,9 +22,9 @@ import { AuthService } from './core/auth/auth.service';
           </a>
 
           <div class="nav-links">
-            <a class="nav-link" routerLink="/calculator"
+            <a class="nav-link" routerLink="/timesheets"
                routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">
-              Calculator
+              Time Sheets
             </a>
             <a class="nav-link" routerLink="/estimate"
                routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">

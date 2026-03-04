@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using UnionRulesApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,6 +14,20 @@ builder.Services.AddSingleton<GenAiFileSyncService>();
 builder.Services.AddSingleton<GeminiService>();
 builder.Services.AddSingleton<VertexAiService>();
 builder.Services.AddSingleton<DocsService>();
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = "https://accounts.google.com";
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidIssuer = "https://accounts.google.com",
+            ValidAudience = builder.Configuration["Google:ClientId"],
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true
+        };
+    });
 
 builder.Services.AddCors(options =>
 {
@@ -46,6 +62,7 @@ app.Use(async (context, next) =>
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapFallbackToFile("index.html");

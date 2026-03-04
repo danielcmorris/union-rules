@@ -7,7 +7,17 @@ export const routes: Routes = [
     loadComponent: () => import('./features/login/login.component').then(m => m.LoginComponent)
   },
   {
-    path: 'calculator',
+    path: 'timesheets',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/timesheets/timesheets.component').then(m => m.TimesheetsComponent)
+  },
+  {
+    path: 'timesheets/:id/review',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/estimate/estimate.component').then(m => m.EstimateComponent)
+  },
+  {
+    path: 'timesheets/:id',
     canActivate: [authGuard],
     loadComponent: () => import('./features/calculator/calculator.component').then(m => m.CalculatorComponent)
   },
@@ -31,6 +41,7 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () => import('./features/about/about.component').then(m => m.AboutComponent)
   },
-  { path: '', redirectTo: 'calculator', pathMatch: 'full' },
-  { path: '**', redirectTo: 'calculator' }
+  { path: '', redirectTo: 'timesheets', pathMatch: 'full' },
+  { path: 'calculator', redirectTo: 'timesheets', pathMatch: 'full' },
+  { path: '**', redirectTo: 'timesheets' }
 ];
