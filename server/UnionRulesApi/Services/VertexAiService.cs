@@ -19,11 +19,12 @@ public class VertexAiService
     {
         _configuration = configuration;
 
-        var credPath = configuration["VertexAi:ServiceAccountPath"]
-            ?? throw new InvalidOperationException("VertexAi:ServiceAccountPath is not configured.");
+        var credPath = configuration["VertexAi:ServiceAccountPath"];
+        var credential = string.IsNullOrWhiteSpace(credPath)
+            ? GoogleCredential.GetApplicationDefault()
+            : GoogleCredential.FromFile(credPath);
 
-        _credential = GoogleCredential.FromFile(credPath)
-            .CreateScoped("https://www.googleapis.com/auth/cloud-platform");
+        _credential = credential.CreateScoped("https://www.googleapis.com/auth/cloud-platform");
 
         _httpClient = new HttpClient();
     }

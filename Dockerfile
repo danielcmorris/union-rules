@@ -26,9 +26,6 @@ COPY --from=ng-build /ng/dist/client/browser /var/www/html
 # .NET published output
 COPY --from=dotnet-build /publish /app
 
-# Service account credentials
-COPY creds/vertexai.json /app/creds/vertexai.json
-
 # nginx config
 COPY nginx.conf /etc/nginx/nginx.conf
 
